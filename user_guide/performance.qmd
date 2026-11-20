@@ -1,0 +1,66 @@
+---
+title: Performance
+description: Threads, GPU acceleration and memory use.
+---
+
+polars-umap is usually 2–12× faster than umap-learn, with no JIT warm-up; see the
+[benchmarks](benchmarks.qmd). This page covers the settings that affect speed and memory.
+
+## Threads
+
+UMAP runs on a shared thread pool. Its size comes from, in order:
+
+1. the `RAYON_NUM_THREADS` environment variable,
+2. the `POLARS_MAX_THREADS` environment variable,
+3. the number of logical CPUs.
+
+When Polars evaluates several groups at once (`.over()` or `group_by()`), all of them share this
+pool instead of each starting its own threads, so the machine isn't oversubscribed.
+
+Pass `n_threads=` to run a call on a dedicated pool of that size, for example to leave cores free
+for other work:
+
+```python
+pl.col("embedding").umap.fit_transform(n_threads=4)
+```
+
+With the default layout, the number of threads doesn't change the result.
+
+## GPU
+
+`gpu=True` runs the nearest neighbor search and the layout optimization on the GPU, through
+[wgpu](https://wgpu.rs): Metal on macOS, Vulkan or DirectX 12 elsewhere. When no suitable GPU is
+found, polars-umap quietly falls back to the CPU.
+
+```python
+pl.col("embedding").umap.fit_transform(gpu=True)
+```
+
+Setting up the GPU has a fixed cost, so it only pays off on larger data. In the benchmarks on an
+Apple Silicon laptop:
+
+- with the 0.5 layout, the GPU was 1.5–2× faster from about 10,000 rows;
+- with the default 0.6 layout, it was only faster at a million rows (25 s against 32 s);
+- on small data it was slower.
+
+That's why `gpu=False` is the default. Measure on your own hardware and data.
+
+## Memory
+
+Peak memory is roughly the size of the input as `Float32`, plus the neighbor graph and the
+optimizer state. That came to about 1 GB for 100,000 × 128 and 4 GB for 1,000,000 × 16 in the
+benchmarks: the same as the upstream Rust implementation on its own.
+
+To reduce it:
+
+- **Store embeddings as `Float32`.** `Float64` input is converted, which costs an extra copy.
+- **Select only what you need.** UMAP needs the full input column in memory, but not the other
+  columns.
+- **Reduce the dimensionality first.** For very wide vectors, a PCA to 50–100 dimensions before
+  UMAP saves memory and time, usually with little effect on the result.
+
+## Compared with umap-learn
+
+polars-umap has no numba JIT compilation, which in umap-learn adds 10–12 seconds to the first call
+in every new process. That makes polars-umap especially quick for scripts, notebooks that restart
+often, and many small fits.

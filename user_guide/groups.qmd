@@ -1,0 +1,78 @@
+---
+title: One UMAP per group
+description: Fit a separate UMAP for every group with .over() or group_by().agg().
+jupyter: python3
+---
+
+UMAP is fitted on all rows that an expression sees. In a window or group context, an expression
+sees one group at a time, so you get an independent UMAP per group, all within a single query.
+
+```{python}
+#| echo: false
+import numpy as np
+import polars as pl
+from sklearn.datasets import make_blobs
+
+frames = []
+for tenant in range(20):
+    X, _ = make_blobs(n_samples=500, n_features=16, centers=4, random_state=tenant)
+    frames.append(pl.DataFrame({"tenant": tenant, "embedding": X.astype(np.float32)}))
+df = pl.concat(frames)
+```
+
+Say you have embeddings for 20 customers ("tenants") that should never be mixed:
+
+```{python}
+df.group_by("tenant").len().sort("tenant").head(3)
+```
+
+## With `.over()`
+
+`.over()` keeps every row in place and adds the per-group embedding next to it:
+
+```{python}
+import polars_umap  # noqa: F401
+
+out = df.with_columns(
+    xy=pl.col("embedding").umap.fit_transform(random_state=0).over("tenant"),
+)
+out.head(3)
+```
+
+Each group gets exactly the result it would get on its own:
+
+```{python}
+one = df.filter(pl.col("tenant") == 7).select(
+    pl.col("embedding").umap.fit_transform(random_state=0)
+)
+out.filter(pl.col("tenant") == 7)["xy"].equals(one["embedding"], check_names=False)
+```
+
+## With `group_by().agg()`
+
+`group_by().agg()` gives one row per group, with lists of results. `explode()` turns them back into
+rows:
+
+```{python}
+per_tenant = df.with_row_index("id").group_by("tenant", maintain_order=True).agg(
+    "id", xy=pl.col("embedding").umap.fit_transform(random_state=0)
+)
+per_tenant.head(3)
+```
+
+```{python}
+per_tenant.explode("id", "xy").head(3)
+```
+
+## Why this is fast
+
+Polars runs the groups concurrently, and every UMAP shares one thread pool, so the machine is
+used fully without oversubscribing it. In the [benchmarks](benchmarks.qmd), one `.over()` query
+fitting 1,000 UMAPs took 18 seconds, against 58 seconds for a Python loop over polars-umap.
+
+::: {.callout-tip}
+## kNN indices are per group too
+
+`.umap.knn().over("group")` returns neighbor indices relative to the start of each group, not the
+whole frame. Add a row index per group (`pl.int_range(pl.len()).over("group")`) to join them back.
+:::

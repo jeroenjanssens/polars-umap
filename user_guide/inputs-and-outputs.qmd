@@ -1,0 +1,104 @@
+---
+title: Inputs and outputs
+description: Which columns polars-umap accepts, and how to work with the embedding it returns.
+jupyter: python3
+---
+
+```{python}
+#| echo: false
+import numpy as np
+import polars as pl
+
+rng = np.random.default_rng(0)
+vectors = rng.normal(size=(200, 8)).astype(np.float32)
+```
+
+## Input
+
+polars-umap accepts two kinds of input.
+
+### One vector per row
+
+A single `Array` or `List` column, where each row holds one vector. This is the natural shape for
+embeddings from a language or image model.
+
+```{python}
+import polars_umap as pu
+
+df = pl.DataFrame({"embedding": vectors})  # Array(Float32, 8)
+df.select(pl.col("embedding").umap.fit_transform(random_state=0)).head(3)
+```
+
+A `List` column works too, as long as every row has the same length:
+
+```{python}
+as_list = df.with_columns(pl.col("embedding").arr.to_list())
+as_list.select(pl.col("embedding").umap.fit_transform(random_state=0)).head(3)
+```
+
+Lists of different lengths raise an error, because UMAP needs every vector to have the same
+dimensionality.
+
+### Several numeric columns
+
+Pass several numeric columns to `pu.umap()` and they're stacked into a feature matrix, like `X` in
+scikit-learn:
+
+```{python}
+wide = pl.DataFrame(vectors, schema=[f"feature_{i}" for i in range(8)])
+wide.select(pu.umap("feature_0", "feature_1", "feature_2", random_state=0)).head(3)
+```
+
+Selectors and regular expressions work too:
+
+```{python}
+import polars.selectors as cs
+
+wide.select(
+    pu.umap(cs.starts_with("feature_"), random_state=0).alias("from_selector"),
+    pu.umap(pl.col("^feature_.*$"), random_state=0).alias("from_regex"),
+).head(3)
+```
+
+### Data types
+
+Integer, float and boolean values are all converted to `Float32`, which is what the UMAP
+implementation uses internally. `Float64` input gives the same result as `Float32` input.
+
+## Output
+
+Expressions return an `Array(Float32, n_components)` column with one point per input row, in the
+same order. The column is named after the first input column; use `.alias()` to rename it.
+
+```{python}
+out = df.select(xyz=pl.col("embedding").umap.fit_transform(n_components=3, random_state=0))
+out.schema
+```
+
+To get one column per component, use `.arr.get()`, `.arr.to_struct()` or the DataFrame helper:
+
+```{python}
+out.select(
+    pl.col("xyz").arr.get(0).alias("x"),
+    pl.col("xyz").arr.get(1).alias("y"),
+    pl.col("xyz").arr.get(2).alias("z"),
+).head(3)
+```
+
+```{python}
+df.umap.fit_transform("embedding", n_components=3, random_state=0).head(3)
+```
+
+The helper takes `output="array"` to add a single Array column instead, `name=` to name that
+column, and `prefix=` to change the `umap_` prefix of the component columns.
+
+## Small inputs
+
+UMAP needs a few points to do anything meaningful. polars-umap handles tiny inputs gracefully,
+which matters when you run it per group:
+
+- 0 rows give an empty result;
+- 1 row is placed at the origin;
+- 2 rows are placed one unit apart;
+- otherwise, `n_neighbors` is reduced to the number of rows minus one when needed, as umap-learn
+  does.

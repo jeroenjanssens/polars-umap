@@ -4,16 +4,63 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
-  contents: write
+  contents: read
+
+env:
+  GREAT_DOCS: great-docs[marimo]==0.17.0
 
 jobs:
-  docs:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0  # full history for accurate page dates
       - uses: astral-sh/setup-uv@v6
-      - run: uvx --with mkdocs-material --with "mkdocstrings[python]" mkdocs build --strict
-      - if: github.event_name == 'push'
-        run: uvx --with mkdocs-material --with "mkdocstrings[python]" mkdocs gh-deploy --force
+      - uses: quarto-dev/quarto-actions/setup@v2
+
+      # The API reference uses static analysis (dynamic: false) and the executed
+      # pages come from the committed _freeze/ cache, so the Rust extension is not
+      # built here.
+      - name: Export the marimo notebook to WebAssembly
+        run: |
+          echo n | uvx --from "marimo>=0.20" marimo export html-wasm notebooks/explore-umap.py \
+            -o assets/notebooks/explore-umap --mode run --no-sandbox
+
+      - name: Build the site
+        run: uvx --from "$GREAT_DOCS" great-docs build
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # changelog from GitHub releases
+
+      - name: Check that cached outputs were used
+        run: |
+          if git status --porcelain _freeze | grep -q .; then
+            echo "::error::_freeze/ is out of date. Rebuild the docs locally and commit _freeze/."
+            git status --porcelain _freeze
+            exit 1
+          fi
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: great-docs/_site
+
+  deploy:
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

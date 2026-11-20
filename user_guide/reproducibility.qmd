@@ -1,0 +1,61 @@
+---
+title: Reproducibility
+description: Layouts, seeds and threads, and when results are bit-for-bit reproducible.
+jupyter: python3
+---
+
+polars-umap can reproduce two versions of the umap-learn pipeline, selected with `layout`.
+
+| | `layout="0.6"` (default) | `layout="0.5"` |
+|---|---|---|
+| Reproduces | umap-learn 0.6 with `optimizer="adam"` | umap-learn 0.5 (and 0.6 defaults) |
+| Initialization | recursive (graph coarsening, anchored on PCA) | spectral |
+| Optimizer | Adam, with deterministic negative sampling | Hogwild SGD |
+| Same seed, same result | yes, at any thread count | only with `n_threads=1` |
+| Speed | faster | 2–3× slower on the CPU |
+
+## Seeds
+
+With the default layout, the same `random_state` gives exactly the same embedding, however many
+threads you use:
+
+```{python}
+import numpy as np
+import polars as pl
+from sklearn.datasets import load_digits
+
+import polars_umap  # noqa: F401
+
+X, _ = load_digits(return_X_y=True)
+df = pl.DataFrame({"pixels": X})
+
+
+def embed(**kwargs) -> np.ndarray:
+    return df.select(pl.col("pixels").umap.fit_transform(**kwargs)).to_series().to_numpy()
+
+
+a = embed(random_state=1)
+b = embed(random_state=1, n_threads=2)
+np.array_equal(a, b)
+```
+
+Without `random_state`, every run is different.
+
+## The 0.5 layout
+
+The 0.5 layout uses Hogwild SGD, where many threads update the embedding at once without locking.
+That's fast, but the order of updates differs between runs, so the result does too, even with a
+seed. The quality doesn't change. For an exact repeat, use a single thread:
+
+```{python}
+np.array_equal(
+    embed(random_state=1, layout="0.5", n_threads=1),
+    embed(random_state=1, layout="0.5", n_threads=1),
+)
+```
+
+## Across versions
+
+Results are reproducible for a given version of polars-umap. A new version may change them,
+for example when the upstream implementation improves. Pin the version when exact reproducibility
+over time matters.

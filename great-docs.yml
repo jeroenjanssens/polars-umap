@@ -1,0 +1,125 @@
+# Great Docs configuration for polars-umap.
+# Reference: https://posit-dev.github.io/great-docs/user-guide/configuration.html
+#
+# Build locally (see README > Development):
+#   uv run --group docs great-docs build
+#   uv run --group docs great-docs preview
+
+module: polars_umap
+display_name: polars-umap
+parser: numpy
+
+# Static analysis (griffe) instead of importing the package: the docs can be
+# built without compiling the Rust extension.
+dynamic: false
+
+repo: https://github.com/jeroenjanssens/polars-umap
+github_style: widget
+pypi: https://pypi.org/project/polars-umap/
+site_url: https://polars-umap.jeroenjanssens.com
+
+navbar_style: mint
+content_style:
+  preset: mint
+  pages: homepage
+dark_mode_toggle: true
+
+logo:
+  light: assets/logo.svg
+  dark: assets/logo-dark.svg
+  show_title: true
+favicon: assets/favicon.svg
+
+hero:
+  enabled: true
+  tagline: false  # the README's first line already says it
+
+authors:
+  - name: Jeroen Janssens
+    role: Author, maintainer
+    github: jeroenjanssens
+    homepage: https://jeroenjanssens.com
+
+seo:
+  default_description: >-
+    polars-umap runs UMAP dimensionality reduction inside Polars expressions,
+    powered by the Rust implementation from Apple's embedding-atlas.
+
+user_guide:
+  - section: Get started
+    contents:
+      - installation.qmd
+      - quickstart.qmd
+  - section: Using polars-umap
+    contents:
+      - inputs-and-outputs.qmd
+      - groups.qmd
+      - lazy-pipelines.qmd
+      - missing-values.qmd
+      - nearest-neighbors.qmd
+      - choosing-parameters.qmd
+  - section: Going further
+    contents:
+      - reproducibility.qmd
+      - performance.qmd
+      - how-it-works.qmd
+      - benchmarks.qmd
+
+sections:
+  - title: Examples
+    dir: gallery
+    index: true
+    index_columns: 2
+    navbar_after: User Guide
+
+reference:
+  - title: Functions
+    desc: >-
+      Build expressions that run UMAP or nearest neighbor search. They take
+      column names, expressions or selectors.
+    contents:
+      - umap
+      - knn
+      - umap_from_knn
+  - title: Namespaces
+    desc: >-
+      Importing `polars_umap` registers a `umap` namespace on `pl.Expr`,
+      `pl.DataFrame` and `pl.LazyFrame`.
+    contents:
+      - name: UmapExprNamespace
+      - name: UmapDataFrameNamespace
+      - name: UmapLazyFrameNamespace
+
+# The marimo notebook is exported as a standalone WebAssembly app by
+# scripts/export_notebook.sh and embedded with an iframe. Great Docs' own
+# marimo support is off: it loads the islands runtime on every page, which
+# breaks Altair charts.
+marimo: false
+
+changelog:
+  enabled: true
+
+skill:
+  enabled: true
+  gotchas:
+    - "Import `polars_umap` before using the `.umap` namespace; the import registers it."
+    - "UMAP fits on all rows the expression sees. Use `.over(...)` for one fit per group."
+    - "There is no `transform()` for new points; refit on the combined data instead."
+    - "Rows with null, NaN or infinite values raise unless `null_policy=\"ignore\"`."
+  best_practices:
+    - "Pass `random_state` for reproducible embeddings; the default 0.6 layout is then bit-identical across runs and thread counts."
+    - "Use `metric=\"cosine\"` for text embeddings."
+    - "Keep `gpu=False` unless the data is large (around a million rows) or you use `layout=\"0.5\"`."
+  decision_table:
+    - need: "Embed an Array/List embedding column"
+      use: "pl.col(\"emb\").umap.fit_transform()"
+    - need: "Embed several numeric columns"
+      use: "polars_umap.umap(\"a\", \"b\", \"c\")"
+    - need: "Add umap_0, umap_1 columns to a frame"
+      use: "df.umap.fit_transform(\"emb\")"
+    - need: "One embedding per group"
+      use: "pl.col(\"emb\").umap.fit_transform().over(\"group\")"
+    - need: "Approximate nearest neighbors"
+      use: "pl.col(\"emb\").umap.knn(k=15)"
+    - need: "UMAP on a precomputed kNN graph"
+      use: "polars_umap.umap_from_knn(\"indices\", \"distances\")"

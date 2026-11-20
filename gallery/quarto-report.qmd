@@ -1,0 +1,187 @@
+---
+title: "A Quarto report: mapping newsgroup posts"
+description: >-
+  A complete Quarto document that embeds text with polars-umap, maps it,
+  and finds similar posts. Download the source and render it yourself.
+image: ../assets/images/newsgroups.png
+author: Jeroen Janssens
+date: 2026-11-20
+jupyter: python3
+format:
+  html:
+    code-fold: true
+    code-summary: Show the code
+    number-sections: true
+    fig-cap-location: bottom
+---
+
+::: {.callout-note}
+## About this example
+
+This page is a regular Quarto document with executable Python cells. Download
+[`quarto-report.qmd`](https://github.com/jeroenjanssens/polars-umap/blob/main/gallery/quarto-report.qmd)
+and render it with:
+
+```bash
+uv run --with polars-umap --with scikit-learn --with altair --with jupyter \
+  quarto render quarto-report.qmd
+```
+:::
+
+## Introduction
+
+How do posts from different discussion groups relate to each other? This report embeds
+posts from three newsgroups as vectors, projects them to 2D with
+[polars-umap](https://polars-umap.jeroenjanssens.com), and looks at the structure that
+emerges. The newsgroups are about hockey, space and religion.
+
+## Data
+
+```{python}
+#| label: setup
+import altair as alt
+import numpy as np
+import polars as pl
+from sklearn.datasets import fetch_20newsgroups
+from sklearn.decomposition import TruncatedSVD
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+import polars_umap as pu
+
+pl.Config(fmt_str_lengths=120, tbl_hide_dataframe_shape=True)
+
+TOPICS = {
+    "rec.sport.hockey": "Hockey",
+    "sci.space": "Space",
+    "talk.religion.misc": "Religion",
+}
+COLORS = ["#2a78d6", "#eb6834", "#1baf7a"]
+
+news = fetch_20newsgroups(
+    subset="all", categories=list(TOPICS), remove=("headers", "footers", "quotes")
+)
+```
+
+We use the [20 Newsgroups](http://qwone.com/~jason/20Newsgroups/) dataset, with headers,
+signatures and quoted replies removed. Each post becomes a 100-dimensional vector: TF-IDF
+weights, reduced with a truncated SVD. Any embedding model works the same way from here on.
+
+```{python}
+#| label: embed
+tfidf = TfidfVectorizer(min_df=3, stop_words="english").fit_transform(news.data)
+vectors = TruncatedSVD(n_components=100, random_state=0).fit_transform(tfidf)
+
+posts = pl.DataFrame(
+    {
+        "text": news.data,
+        "topic": [TOPICS[news.target_names[i]] for i in news.target],
+        "embedding": vectors.astype(np.float32),
+    }
+).with_columns(
+    # Empty posts have an all-zero vector, for which cosine distance is undefined.
+    pl.when(pl.Series(np.linalg.norm(vectors, axis=1) > 0)).then(pl.col("embedding")),
+    snippet=pl.col("text").str.replace_all(r"\s+", " ").str.strip_chars().str.slice(0, 120),
+)
+```
+
+```{python}
+#| label: tbl-posts
+#| tbl-cap: Posts per newsgroup.
+posts.group_by("topic").agg(
+    posts=pl.len(), empty=pl.col("embedding").is_null().sum()
+).sort("topic")
+```
+
+## A map of the posts
+
+polars-umap projects the vectors to 2D. Cosine distance suits text vectors, whose length
+mostly reflects the length of the post. `null_policy="ignore"` skips the empty posts.
+
+```{python}
+#| label: umap
+posts = posts.umap.fit_transform(
+    "embedding", metric="cosine", null_policy="ignore", random_state=0
+)
+```
+
+```{python}
+#| label: fig-map
+#| fig-cap: >-
+#|   Newsgroup posts embedded with polars-umap. Hover over a point to read the
+#|   start of the post.
+(
+    alt.Chart(posts.drop_nulls("umap_0").select("topic", "snippet", "umap_0", "umap_1"))
+    .mark_circle(size=14, opacity=0.6)
+    .encode(
+        x=alt.X("umap_0", axis=None),
+        y=alt.Y("umap_1", axis=None),
+        color=alt.Color(
+            "topic:N",
+            scale=alt.Scale(domain=list(TOPICS.values()), range=COLORS),
+            legend=alt.Legend(title=None, orient="top-left"),
+        ),
+        tooltip=[alt.Tooltip("topic:N", title="Newsgroup"), alt.Tooltip("snippet:N", title="Post")],
+    )
+    .properties(width="container", height=480)
+    .configure_view(stroke=None)
+)
+```
+
+@fig-map shows that hockey and space each form a large region of their own. Religion is
+more spread out and overlaps with space where posts discuss, for example, cosmology and
+creation. The small, dense islands at the edges are near-duplicates: repeated
+announcements and very short posts.
+
+## How well are the topics separated?
+
+A simple way to quantify the map: for each post, how many of its 10 nearest neighbors in
+the embedding come from the same newsgroup? polars-umap's `knn()` works on the 2D
+embedding as well.
+
+```{python}
+#| label: tbl-purity
+#| tbl-cap: Share of each post's 10 nearest neighbors on the map that come from the same newsgroup.
+mapped = posts.drop_nulls("umap_0").with_row_index("row")
+neighbors = mapped.select(
+    "row", "topic", nn=pu.knn("umap_0", "umap_1", k=11, random_state=0)
+).with_columns(nn=pl.col("nn").struct.field("indices").arr.to_list())
+
+(
+    neighbors.explode("nn")
+    .filter(pl.col("nn") != pl.col("row"))
+    .join(mapped.select(nn="row", nn_topic="topic"), on="nn")
+    .group_by("topic")
+    .agg(same_newsgroup=(pl.col("topic") == pl.col("nn_topic")).mean())
+    .sort("topic")
+    .with_columns(pl.col("same_newsgroup").round(3))
+)
+```
+
+## Similar posts
+
+Nearest neighbors in the original 100-dimensional space find posts about the same thing.
+Here are the closest posts to one about the Hubble Space Telescope:
+
+```{python}
+#| label: tbl-similar
+#| tbl-cap: The five posts most similar to a post about the Hubble Space Telescope.
+query = (
+    posts.with_row_index("row")
+    .filter(pl.col("text").str.contains("Hubble") & pl.col("embedding").is_not_null())
+    .row(0, named=True)["row"]
+)
+nn = posts.select(nn=pu.knn("embedding", k=6, metric="cosine", null_policy="ignore", random_state=0))
+similar = nn.row(query)[0]
+pl.DataFrame({"row": similar["indices"], "distance": similar["distances"]}).join(
+    posts.with_row_index("row").select("row", "topic", "snippet"), on="row"
+).sort("distance").select("distance", "topic", "snippet").with_columns(pl.col("distance").round(3))
+```
+
+The first row is the post itself, at distance 0.
+
+## Conclusion
+
+A few lines of Polars turn raw text vectors into an interpretable map. The newsgroups about
+hockey and space form clear clusters. Religion is the most diverse, which matches its "misc"
+name. The same pipeline works for any embedding column, and with `.over()` it would produce one
+map per group just as easily.

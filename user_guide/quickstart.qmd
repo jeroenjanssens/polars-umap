@@ -1,0 +1,81 @@
+---
+title: Quickstart
+description: Embed a dataset with polars-umap in a few lines and plot the result.
+jupyter: python3
+---
+
+This page takes you from a DataFrame of high-dimensional vectors to a 2D map of them. We'll use
+the handwritten digits that ship with scikit-learn: 1,797 images of 8×8 pixels, so 64 numbers
+per image.
+
+## Load the data
+
+```{python}
+import polars as pl
+import polars_umap as pu  # registers the `umap` namespace
+from sklearn.datasets import load_digits
+
+X, y = load_digits(return_X_y=True)
+digits = pl.DataFrame({"pixels": X, "digit": y})
+digits.head()
+```
+
+The 2D NumPy array becomes an `Array(Float64, 64)` column: one fixed-length vector per row. This
+is how embeddings usually live in Polars.
+
+## Run UMAP
+
+Call `.umap.fit_transform()` on the column:
+
+```{python}
+digits = digits.with_columns(
+    xy=pl.col("pixels").umap.fit_transform(random_state=42),
+)
+digits.head()
+```
+
+The result is an `Array(Float32, 2)` column with one 2D point per row. `random_state` makes the
+result reproducible: run it again and you get exactly the same numbers.
+
+If you'd rather have one column per dimension, use the DataFrame helper:
+
+```{python}
+digits = digits.umap.fit_transform("pixels", random_state=42)
+digits.select("digit", "umap_0", "umap_1").head()
+```
+
+## Plot it
+
+```{python}
+#| code-fold: true
+#| code-summary: Show the plotting code
+import altair as alt
+
+centers = digits.group_by("digit").agg(pl.col("umap_0", "umap_1").median())
+points = (
+    alt.Chart(digits.select("digit", "umap_0", "umap_1"))
+    .mark_circle(size=12, opacity=0.5, color="#8d8b86")
+    .encode(
+        x=alt.X("umap_0", axis=None),
+        y=alt.Y("umap_1", axis=None),
+        tooltip=[alt.Tooltip("digit:N", title="Digit")],
+    )
+)
+labels = (
+    alt.Chart(centers)
+    .mark_text(fontSize=16, fontWeight="bold", color="#5f5d58")
+    .encode(x="umap_0", y="umap_1", text="digit:N")
+)
+(points + labels).properties(width="container", height=440).configure_view(stroke=None)
+```
+
+UMAP has never seen the labels, yet each digit forms its own cluster. Digits that are easy to
+confuse, such as 1 and 7, or 3, 5 and 8, end up closer together.
+
+## What's next
+
+- [Inputs and outputs](inputs-and-outputs.qmd): Array, List and plain numeric columns, and
+  how to unpack the result.
+- [One UMAP per group](groups.qmd): `.over()` and `group_by()`.
+- [Choosing parameters](choosing-parameters.qmd): what `n_neighbors` and `min_dist` do.
+- The [reference](../reference/index.qmd) lists every parameter.

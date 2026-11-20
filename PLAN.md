@@ -337,7 +337,7 @@ Status as of 2026-11-20. `[x]` means done and verified, `[~]` means partially do
 ### Phase 5: examples, docs, CI, release
 - [x] examples (quickstart, text embeddings, per-group, lazy parquet, precomputed kNN, marimo notebook)
 - [x] README, CHANGELOG
-- [x] mkdocs site config (index, examples, API reference, benchmarks)
+- [x] Great Docs site (replaces mkdocs): user guide (12 pages, executed), API reference, Examples (Quarto report, marimo WASM notebook), benchmarks, changelog, llms.txt, SKILL.md
 - [x] Compatibility tested locally: py3.9 + polars 1.0.0, py3.10 + 1.20/1.25, py3.11 + 1.30, py3.12 + 1.34/1.39, py3.13 + 2.0, py3.14 + 2.1
 - [~] GitHub Actions written (lint, test matrix incl. oldest versions, parity, micro-benchmarks, wheels for linux/macos/windows, trusted publishing). **Not yet run**, because there's no remote repo yet.
 - [x] sdist decision: no vendoring. The sdist builds against the pinned git rev, so building from source needs network access (documented). `scripts/bump_upstream.sh` updates the pin.
@@ -351,6 +351,8 @@ polars-umap works around it by retrying with spectral init and raising a clear e
 ### Open / for later
 - [ ] Create the GitHub repo, push, and make CI green
 - [ ] Configure the PyPI trusted publisher (workflow `release.yml`, environment `release`) and tag v0.1.0
-- [ ] Publish docs (GitHub Pages)
+- [x] Publish docs (GitHub Pages via actions/deploy-pages)
+- [ ] Custom domain polars-umap.jeroenjanssens.com (CNAME file + DNS)
+- [ ] Report to posit-dev/great-docs: `marimo: true` injects the islands runtime on every page, which breaks Altair charts (`vegaEmbed(...).catch is not a function`)
 - [ ] Consider asking upstream to publish the crates to crates.io (needs a name other than `umap`)
 - [ ] Transform of new points once upstream supports it

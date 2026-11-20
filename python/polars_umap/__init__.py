@@ -15,8 +15,22 @@ The algorithm is the Rust port of umap-learn and PyNNDescent from Apple's
 
 from __future__ import annotations
 
-from polars_umap import _namespace  # noqa: F401  (registers the namespaces)
 from polars_umap._functions import knn, umap, umap_from_knn
 from polars_umap._internal import __version__
 
-__all__ = ["__version__", "knn", "umap", "umap_from_knn"]
+# Importing the namespace module registers the `umap` namespaces.
+from polars_umap._namespace import (
+    UmapDataFrameNamespace,
+    UmapExprNamespace,
+    UmapLazyFrameNamespace,
+)
+
+__all__ = [
+    "UmapDataFrameNamespace",
+    "UmapExprNamespace",
+    "UmapLazyFrameNamespace",
+    "__version__",
+    "knn",
+    "umap",
+    "umap_from_knn",
+]

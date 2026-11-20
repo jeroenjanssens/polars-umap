@@ -1,0 +1,74 @@
+---
+title: Missing values
+description: How polars-umap treats nulls, NaN and infinite values.
+jupyter: python3
+---
+
+A row is **invalid** when it is null, or contains a null, NaN or infinite value. UMAP can't place
+such a row, so polars-umap gives you two options through `null_policy`.
+
+```{python}
+#| echo: false
+import numpy as np
+import polars as pl
+
+import polars_umap as pu
+
+rng = np.random.default_rng(0)
+rows = rng.normal(size=(50, 3)).tolist()
+rows[3] = None
+rows[10] = [1.0, None, 2.0]
+rows[20] = [1.0, float("nan"), 2.0]
+df = pl.DataFrame({"embedding": rows}, schema={"embedding": pl.Array(pl.Float64, 3)})
+```
+
+```{python}
+df.filter(pl.int_range(pl.len()).is_in([3, 10, 20]))
+```
+
+## `null_policy="error"` (default)
+
+Invalid rows raise an error that says how many there are and where the first one is:
+
+```{python}
+#| error: true
+df.select(pl.col("embedding").umap.fit_transform())
+```
+
+## `null_policy="ignore"`
+
+UMAP is fitted on the valid rows only, and the invalid rows get a null result. The output still
+has one row per input row, so it lines up with the rest of the frame:
+
+```{python}
+out = df.with_columns(
+    xy=pl.col("embedding").umap.fit_transform(null_policy="ignore", random_state=0)
+)
+out.filter(pl.col("xy").is_null())
+```
+
+The valid rows get exactly the embedding they would get if the invalid rows weren't there.
+
+## Nearest neighbors
+
+`knn()` supports the same policy. Ignored rows get a null result, and they never appear as
+someone else's neighbor:
+
+```{python}
+df.select(pl.col("embedding").umap.knn(k=3, null_policy="ignore")).head(5)
+```
+
+::: {.callout-tip}
+## Zero vectors and cosine distance
+
+An all-zero vector has no direction, so its cosine distance to anything is undefined. Text
+embeddings of empty documents are a common source of them. Turn them into nulls first:
+
+```python
+df.with_columns(
+    pl.when(
+        pl.col("embedding").arr.to_list().list.eval(pl.element().abs()).list.sum() > 0
+    ).then(pl.col("embedding"))
+)
+```
+:::

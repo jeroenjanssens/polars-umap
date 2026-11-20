@@ -1,4 +1,4 @@
-"""Turn benchmark JSON lines into ``docs/benchmarks.md`` and a figure.
+"""Turn benchmark JSON lines into ``user_guide/benchmarks.qmd`` and figures.
 
 uv run --group bench python benchmarks/report.py
 """
@@ -181,7 +181,7 @@ def main() -> None:
     raw = load(results)
     machine = json.loads(results.read_text().splitlines()[0]).get("machine", {})
     s = summarize(raw)
-    images = ROOT / "docs" / "images"
+    images = ROOT / "assets" / "images"
     images.mkdir(parents=True, exist_ok=True)
     layouts = sorted(s["layout"].unique().to_list(), reverse=True)
     for layout in layouts:
@@ -189,7 +189,7 @@ def main() -> None:
 
     machine_md = "\n".join(f"- **{k}**: {v}" for k, v in machine.items())
     figs = "\n\n".join(
-        f"![Fit time, {lay} pipeline](images/benchmark_fit_time_{lay.replace('.', '')}.png)"
+        f"![Fit time, {lay} pipeline](../assets/images/benchmark_fit_time_{lay.replace('.', '')}.png)"
         for lay in layouts
     )
     template = (HERE / "report_template.md").read_text()
@@ -199,8 +199,9 @@ def main() -> None:
         .replace("{{TABLE}}", table(s))
         .replace("{{GROUPS}}", groups_table(HERE / "results" / "groups.jsonl"))
     )
-    (ROOT / "docs" / "benchmarks.md").write_text(md)
-    print("wrote docs/benchmarks.md")
+    out = ROOT / "user_guide" / "benchmarks.qmd"
+    out.write_text(md)
+    print(f"wrote {out.relative_to(ROOT)}")
 
 
 if __name__ == "__main__":

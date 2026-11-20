@@ -1,0 +1,89 @@
+---
+title: Nearest neighbors
+description: Find approximate nearest neighbors with NNDescent, and run UMAP on a precomputed graph.
+jupyter: python3
+---
+
+The first thing UMAP does is find every point's nearest neighbors. polars-umap exposes that step
+on its own: a Rust port of [PyNNDescent](https://github.com/lmcinnes/pynndescent), the approximate
+nearest neighbor search that umap-learn uses.
+
+```{python}
+#| echo: false
+import numpy as np
+import polars as pl
+from sklearn.datasets import load_digits
+
+X, y = load_digits(return_X_y=True)
+digits = pl.DataFrame({"pixels": X, "digit": y})
+```
+
+## Finding neighbors
+
+```{python}
+import polars_umap as pu
+
+nn = digits.with_columns(nn=pl.col("pixels").umap.knn(k=5, random_state=0))
+nn.head(3)
+```
+
+The result is a struct with two fields, both sorted by increasing distance:
+
+- `indices`: an `Array(UInt32, k)` of row numbers;
+- `distances`: an `Array(Float32, k)` of distances in the chosen `metric`.
+
+As in PyNNDescent, every row counts as its own nearest neighbor: it's usually first, at distance
+0. Ask for `k=6` to get five other rows.
+
+Because the indices are row numbers, you can join information about the neighbors back in. For
+example, how often is a neighbor the same digit?
+
+```{python}
+(
+    nn.with_row_index("row")
+    .select("row", "digit", neighbor=pl.col("nn").struct.field("indices").arr.to_list())
+    .explode("neighbor")
+    .filter(pl.col("neighbor") != pl.col("row"))
+    .join(
+        digits.with_row_index("neighbor").select("neighbor", neighbor_digit="digit"),
+        on="neighbor",
+    )
+    .select(same_digit=(pl.col("digit") == pl.col("neighbor_digit")).mean())
+)
+```
+
+## How approximate?
+
+NNDescent trades a little accuracy for a lot of speed. Compared with an exact search:
+
+```{python}
+from sklearn.neighbors import NearestNeighbors
+
+k = 10
+approx = np.asarray(
+    digits.select(pl.col("pixels").umap.knn(k=k, random_state=0).struct.field("indices"))
+    .to_series()
+    .to_list()
+)
+exact = NearestNeighbors(n_neighbors=k).fit(X).kneighbors(X, return_distance=False)
+recall = np.mean([len(set(a) & set(e)) / k for a, e in zip(approx, exact)])
+f"recall@{k}: {recall:.1%}"
+```
+
+When there are fewer rows than `k`, the search is exact and the missing neighbors are null.
+
+## UMAP on a precomputed graph
+
+If you already have neighbors, for example from an exact search, a vector database or FAISS, pass
+them to `umap_from_knn()` and UMAP skips its own search. The original vectors aren't needed:
+
+```{python}
+dist, idx = NearestNeighbors(n_neighbors=15).fit(X).kneighbors(X)
+graph = pl.DataFrame({"indices": idx, "distances": dist.astype(np.float32)})
+
+graph.select(xy=pu.umap_from_knn("indices", "distances", random_state=0)).head(3)
+```
+
+The graph can include each row itself (usually first, at distance 0) or leave it out. Every row
+needs the same number of neighbors. `init="pca"` isn't available here, because it needs the
+vectors.

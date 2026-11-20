@@ -1,0 +1,56 @@
+---
+title: How it works
+description: What happens when you call fit_transform, and where the algorithm comes from.
+---
+
+## The algorithm
+
+UMAP (Uniform Manifold Approximation and Projection) builds a graph of the data's local
+neighborhoods and then looks for a low-dimensional layout with a similar graph. One fit has four
+stages:
+
+1. **Nearest neighbors.** Find every point's `n_neighbors` approximate nearest neighbors with
+   NNDescent, which uses random projection trees and neighbor-of-neighbor exploration.
+2. **Fuzzy graph.** Turn the distances into weighted, symmetric edges, so that every point is
+   connected to at least `local_connectivity` neighbors.
+3. **Initialization.** Place the points in the low-dimensional space: by default with a recursive
+   coarsening of the graph, anchored on a PCA of the data, or with a spectral embedding.
+4. **Optimization.** Move the points so that connected points attract and random pairs repel,
+   with `min_dist` and `spread` controlling how close attracting points get.
+
+The paper describes the theory:
+
+> McInnes, L., Healy, J., & Melville, J. (2018). UMAP: Uniform Manifold Approximation and
+> Projection for Dimension Reduction. [arXiv:1802.03426](https://arxiv.org/abs/1802.03426).
+
+## The implementation
+
+polars-umap doesn't implement UMAP itself. It uses the Rust crates from Apple's
+[embedding-atlas](https://github.com/apple/embedding-atlas), which port
+[umap-learn](https://github.com/lmcinnes/umap) and
+[PyNNDescent](https://github.com/lmcinnes/pynndescent) by Leland McInnes. They're pinned to a
+specific commit, so results don't change unless polars-umap is updated.
+
+## The plugin
+
+polars-umap is a [Polars expression plugin](https://docs.pola.rs/user-guide/plugins/): a compiled
+library that Polars loads and calls directly, without going through Python for the data.
+
+When a query runs:
+
+1. Polars evaluates the input expressions and passes the resulting columns to polars-umap. The
+   function is registered as non-elementwise, so it receives the whole column, or the whole group.
+2. polars-umap converts the columns into one dense `Float32` matrix in a single pass, checking
+   for invalid rows along the way.
+3. The UMAP crate runs the four stages on a thread pool.
+4. The embedding is written back as a Polars `Array` column, with nulls for any ignored rows.
+
+Polars knows the output type from the parameters, without running anything, so lazy queries can
+be planned and checked before they run.
+
+## Limitations
+
+- **No `transform()` for new points.** The upstream implementation only fits. To embed new data,
+  fit again on the combined data.
+- **No supervised UMAP**, densMAP or sparse input.
+- **Dense, in-memory input.** The input column has to fit in memory as `Float32`.

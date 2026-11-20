@@ -51,4 +51,4 @@ title(
 )
 fig.tight_layout()
 fig.savefig(IMAGES / "newsgroups.png", dpi=160, facecolor=SURFACE)
-print("saved docs/images/newsgroups.png")
+print("saved assets/images/newsgroups.png")

@@ -46,4 +46,4 @@ title(
 )
 fig.tight_layout()
 fig.savefig(IMAGES / "digits.png", dpi=160, facecolor=SURFACE)
-print("saved docs/images/digits.png")
+print("saved assets/images/digits.png")

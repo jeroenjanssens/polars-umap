@@ -1,0 +1,64 @@
+---
+title: Lazy pipelines
+description: Use polars-umap in LazyFrame queries, from scan to sink.
+jupyter: python3
+---
+
+Everything in polars-umap works in lazy mode. The output schema is known up front, so you can
+build and inspect a query before running it.
+
+```{python}
+#| echo: false
+import tempfile
+from pathlib import Path
+
+import numpy as np
+import polars as pl
+
+tmp = Path(tempfile.mkdtemp())
+rng = np.random.default_rng(0)
+n = 5_000
+pl.DataFrame(
+    {
+        "id": np.arange(n),
+        "lang": rng.choice(["en", "nl", "de"], n),
+        "embedding": rng.normal(size=(n, 32)).astype(np.float32),
+    }
+).write_parquet(tmp / "embeddings.parquet")
+path = tmp / "embeddings.parquet"
+```
+
+```{python}
+import polars_umap  # noqa: F401
+
+query = (
+    pl.scan_parquet(path)
+    .filter(pl.col("lang") == "en")
+    .umap.fit_transform("embedding", metric="cosine", random_state=0)
+    .drop("embedding")
+)
+query.collect_schema()
+```
+
+```{python}
+print(query.explain())
+```
+
+The filter runs before UMAP, so only the English rows are embedded. Collect the query, or sink it
+to a file:
+
+```{python}
+query.collect().head(3)
+```
+
+```python
+query.sink_parquet("projected.parquet")
+```
+
+## Things to keep in mind
+
+- **UMAP needs all rows at once.** It isn't elementwise: the embedding of each row depends on all
+  the others. Polars therefore materializes the input column before calling polars-umap, even in
+  the streaming engine. Filter and select early so that only what's needed is loaded.
+- **Filters change the result.** Filtering before UMAP fits a different model than filtering
+  after it. That's usually what you want, but it's worth being deliberate about.

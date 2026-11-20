@@ -9,7 +9,7 @@ import matplotlib as mpl
 mpl.use("Agg")
 import matplotlib.pyplot as plt
 
-IMAGES = Path(__file__).parent.parent / "docs" / "images"
+IMAGES = Path(__file__).parent.parent / "assets" / "images"
 SURFACE = "#fcfcfb"
 INK = "#0b0b0b"
 INK_2 = "#52514e"

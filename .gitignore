@@ -1,6 +1,11 @@
+__marimo__/
 __pycache__/
+_great_docs_build/
 .benchmarks/
 .DS_Store
+.great-docs-build/
+.great-docs-cache/
+.great-docs/
 .hypothesis/
 .mypy_cache/
 .pytest_cache/
@@ -12,7 +17,9 @@ __pycache__/
 *.pyd
 *.so
 /target
+assets/notebooks/
 benchmarks/data/
 benchmarks/results/raw/
 dist/
+great-docs/
 site/

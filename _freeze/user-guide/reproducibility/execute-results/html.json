@@ -1,0 +1,12 @@
+{
+  "hash": "f7cadfc88650ee2282655517342b5052",
+  "result": {
+    "engine": "jupyter",
+    "markdown": "---\ntitle: Reproducibility\ndescription: Layouts, seeds and threads, and when results are bit-for-bit reproducible.\njupyter: python3\nbread-crumbs: false\n---\n\npolars-umap can reproduce two versions of the umap-learn pipeline, selected with `layout`.\n\n| | `layout=\"0.6\"` (default) | `layout=\"0.5\"` |\n|---|---|---|\n| Reproduces | umap-learn 0.6 with `optimizer=\"adam\"` | umap-learn 0.5 (and 0.6 defaults) |\n| Initialization | recursive (graph coarsening, anchored on PCA) | spectral |\n| Optimizer | Adam, with deterministic negative sampling | Hogwild SGD |\n| Same seed, same result | yes, at any thread count | only with `n_threads=1` |\n| Speed | faster | 2–3× slower on the CPU |\n\n## Seeds\n\nWith the default layout, the same `random_state` gives exactly the same embedding, however many\nthreads you use:\n\n::: {#0b8add57 .cell execution_count=1}\n``` {.python .cell-code}\nimport numpy as np\nimport polars as pl\nfrom sklearn.datasets import load_digits\n\nimport polars_umap  # noqa: F401\n\nX, _ = load_digits(return_X_y=True)\ndf = pl.DataFrame({\"pixels\": X})\n\n\ndef embed(**kwargs) -> np.ndarray:\n    return df.select(pl.col(\"pixels\").umap.fit_transform(**kwargs)).to_series().to_numpy()\n\n\na = embed(random_state=1)\nb = embed(random_state=1, n_threads=2)\nnp.array_equal(a, b)\n```\n\n::: {.cell-output .cell-output-display execution_count=1}\n```\nTrue\n```\n:::\n:::\n\n\nWithout `random_state`, every run is different.\n\n## The 0.5 layout\n\nThe 0.5 layout uses Hogwild SGD, where many threads update the embedding at once without locking.\nThat's fast, but the order of updates differs between runs, so the result does too, even with a\nseed. The quality doesn't change. For an exact repeat, use a single thread:\n\n::: {#737971a5 .cell execution_count=2}\n``` {.python .cell-code}\nnp.array_equal(\n    embed(random_state=1, layout=\"0.5\", n_threads=1),\n    embed(random_state=1, layout=\"0.5\", n_threads=1),\n)\n```\n\n::: {.cell-output .cell-output-display execution_count=2}\n```\nTrue\n```\n:::\n:::\n\n\n## Across versions\n\nResults are reproducible for a given version of polars-umap. A new version may change them,\nfor example when the upstream implementation improves. Pin the version when exact reproducibility\nover time matters.\n\n",
+    "supporting": [
+      "reproducibility_files"
+    ],
+    "filters": [],
+    "includes": {}
+  }
+}

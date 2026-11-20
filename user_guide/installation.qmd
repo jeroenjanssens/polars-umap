@@ -1,0 +1,78 @@
+---
+title: Installation
+description: Install polars-umap from PyPI and check that it works.
+---
+
+polars-umap is a single package on PyPI. Its only dependency is Polars.
+
+::: {.panel-tabset}
+
+## uv
+
+```bash
+uv add polars-umap
+```
+
+## pip
+
+```bash
+pip install polars-umap
+```
+
+:::
+
+## Requirements
+
+- **Python** 3.9 or newer.
+- **Polars** 1.0 or newer, including Polars 2.x.
+
+Wheels are available for Linux (x86-64 and ARM64, glibc and musl), macOS (Intel and Apple
+Silicon) and Windows (x86-64). They use the stable Python ABI, so one wheel works for every Python
+version from 3.9 on.
+
+## Check the installation
+
+```python
+import polars as pl
+import polars_umap as pu
+
+print(pu.__version__)
+
+df = pl.DataFrame({"x": range(100), "y": [i % 7 for i in range(100)]})
+df.umap.fit_transform("x", "y", random_state=0)
+```
+
+If this prints a version number and returns a frame with `umap_0` and `umap_1` columns, you're
+all set.
+
+::: {.callout-note}
+## Import to register the namespace
+
+The `.umap` namespace on expressions and frames only exists after `import polars_umap`. If you
+get `AttributeError: 'Expr' object has no attribute 'umap'`, you've forgotten that import.
+:::
+
+## GPU support
+
+The wheels include GPU support through [wgpu](https://wgpu.rs). It uses Metal on macOS and Vulkan
+or DirectX 12 elsewhere, and needs no extra installation. Pass `gpu=True` to use it; see
+[Performance](performance.qmd) for when that helps.
+
+## Building from source
+
+If there's no wheel for your platform, pip builds polars-umap from the source distribution. That
+needs:
+
+- a [Rust toolchain](https://rustup.rs) (stable), and
+- network access, because the UMAP implementation is fetched from the
+  [embedding-atlas](https://github.com/apple/embedding-atlas) repository at a pinned commit.
+
+To work on polars-umap itself:
+
+```bash
+git clone https://github.com/jeroenjanssens/polars-umap
+cd polars-umap
+uv sync                                             # builds the extension
+uv run maturin develop --uv --profile dev-release  # faster rebuilds while developing
+uv run pytest -n auto
+```

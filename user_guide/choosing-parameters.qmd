@@ -1,0 +1,102 @@
+---
+title: Choosing parameters
+description: What n_neighbors, min_dist, metric and the other parameters do, with examples.
+jupyter: python3
+---
+
+polars-umap uses the same parameter names and defaults as
+[umap-learn](https://umap-learn.readthedocs.io/en/latest/parameters.html), so its guidance
+applies here too. The defaults are a good start; two parameters are worth exploring.
+
+```{python}
+#| echo: false
+import altair as alt
+import polars as pl
+from sklearn.datasets import load_digits
+
+import polars_umap  # noqa: F401
+
+alt.data_transformers.disable_max_rows()
+X, y = load_digits(return_X_y=True)
+digits = pl.DataFrame({"pixels": X, "digit": y})
+
+
+def grid(param: str, values: list, **fixed) -> alt.Chart:
+    frames = [
+        digits.umap.fit_transform("pixels", random_state=42, **{param: v}, **fixed)
+        .select("digit", "umap_0", "umap_1")
+        .with_columns(pl.lit(f"{param} = {v}").alias("panel"))
+        for v in values
+    ]
+    order = [f"{param} = {v}" for v in values]
+    return (
+        alt.Chart(pl.concat(frames))
+        .mark_circle(size=6, opacity=0.5, color="#8d8b86")
+        .encode(
+            x=alt.X("umap_0", axis=None),
+            y=alt.Y("umap_1", axis=None),
+            tooltip=[alt.Tooltip("digit:N", title="Digit")],
+        )
+        .properties(width=118, height=118)
+        .facet(facet=alt.Facet("panel:N", sort=order, title=None), columns=4)
+        .resolve_scale(x="independent", y="independent")
+        .configure_view(stroke="#e4e3df")
+        .configure_header(labelColor="#8d8b86", labelFontSize=12)
+    )
+```
+
+## `n_neighbors`: local versus global
+
+`n_neighbors` (default 15) is the size of the neighborhood UMAP considers for each point. Small
+values focus on fine local detail, at the cost of the big picture. Large values preserve more
+global structure, at the cost of detail.
+
+```{python}
+#| echo: false
+grid("n_neighbors", [5, 15, 50, 200])
+```
+
+With 5 neighbors, the digits break up into many small fragments. With 200, digits that look
+alike move together. Typical values are 5 to 50. polars-umap reduces `n_neighbors` to the number
+of rows minus one when needed.
+
+## `min_dist`: tight or spread out
+
+`min_dist` (default 0.1) is the minimum distance between points in the embedding. Small values
+give tight, dense clusters, which helps for clustering. Large values spread the points out, which
+shows more of the structure within a cluster.
+
+```{python}
+#| echo: false
+grid("min_dist", [0.0, 0.1, 0.5, 0.99])
+```
+
+`min_dist` must lie between 0 and `spread` (default 1.0), which sets the overall scale.
+
+## `metric`
+
+The distance metric of the input space. Use `"cosine"` for text and image embeddings, whose length
+usually carries no meaning, and `"euclidean"` (the default) for most other numeric data. Also
+available: `"manhattan"`, `"chebyshev"`, `"minkowski"`, `"correlation"` and `"hamming"`.
+
+## `n_components`
+
+The number of output dimensions. Use 2 for plots. For clustering or as input to another model,
+values like 5 or 10 often preserve more structure.
+
+## The rest
+
+| Parameter | When to change it |
+|---|---|
+| `n_epochs` | Fewer is faster but less converged |
+| `init` | Pass an array to start from an earlier layout |
+| `layout` | `"0.5"` to match older umap-learn; see [Reproducibility](reproducibility.qmd) |
+| `learning_rate` | Fine-tuning the optimization; rarely needed |
+| `negative_sample_rate` | Fine-tuning the optimization; rarely needed |
+| `repulsion_strength` | Fine-tuning the optimization; rarely needed |
+| `local_connectivity` | How the neighbor graph is built; rarely needed |
+| `set_op_mix_ratio` | How the neighbor graph is built; rarely needed |
+| `a`, `b` | Override the curve from `min_dist` and `spread` |
+| `disconnection_distance` | Cut edges longer than this in the neighbor graph |
+
+See the [reference](../reference/umap.qmd) for every parameter.

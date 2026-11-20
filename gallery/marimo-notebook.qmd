@@ -1,0 +1,86 @@
+---
+title: "A marimo notebook: exploring parameters"
+description: >-
+  An interactive marimo notebook with sliders for n_neighbors and min_dist.
+  It runs right here in your browser, or locally with live computation.
+image: ../assets/images/digits.png
+---
+
+[marimo](https://marimo.io) notebooks are reactive Python notebooks stored as plain `.py` files.
+The notebook below runs in your browser: move a slider and the plot updates.
+
+```{=html}
+<iframe src="../assets/notebooks/explore-umap/index.html"
+        title="Interactive marimo notebook: exploring UMAP parameters"
+        loading="lazy"
+        style="width: 100%; height: 1150px; border: 1px solid var(--bs-border-color, #e4e3df); border-radius: 8px;">
+</iframe>
+<p style="font-size: 0.85em; margin-top: 0.25rem;">
+  <a href="../assets/notebooks/explore-umap/index.html" target="_blank" rel="noopener">Open the notebook in a new tab</a>
+  (it takes a few seconds to load Python in your browser).
+</p>
+```
+
+At its core, the notebook is two sliders and one polars-umap call:
+
+```python
+n_neighbors = mo.ui.slider(steps=[5, 15, 50, 200], value=15, label="n_neighbors")
+min_dist = mo.ui.slider(steps=[0.0, 0.1, 0.5, 0.99], value=0.1, label="min_dist")
+
+digits.umap.fit_transform(
+    "pixels", n_neighbors=n_neighbors.value, min_dist=min_dist.value, random_state=42
+)
+```
+
+::: {.callout-note}
+## Precomputed in the browser, live on your machine
+
+The browser runs Python through WebAssembly (Pyodide). polars-umap is a compiled Rust extension
+without a WebAssembly build, so in the browser the notebook shows a grid of embeddings that
+polars-umap computed beforehand, with
+[`scripts/precompute_notebook_data.py`](https://github.com/jeroenjanssens/polars-umap/blob/main/scripts/precompute_notebook_data.py).
+On your own machine, it runs polars-umap live.
+:::
+
+## Run it locally
+
+The notebook declares its dependencies inline
+([PEP 723](https://peps.python.org/pep-0723/)), so marimo can install them in an isolated
+environment:
+
+```bash
+uvx marimo edit --sandbox \
+  https://raw.githubusercontent.com/jeroenjanssens/polars-umap/main/notebooks/explore-umap.py
+```
+
+Or, in a project that already has polars-umap:
+
+```bash
+uv add marimo altair scikit-learn
+uv run marimo edit explore-umap.py
+```
+
+The source is in
+[`notebooks/explore-umap.py`](https://github.com/jeroenjanssens/polars-umap/blob/main/notebooks/explore-umap.py).
+
+## Using polars-umap in your own notebook
+
+polars-umap needs nothing special in marimo. A UI element feeding its parameters makes the
+embedding recompute whenever the element changes:
+
+```python
+import marimo as mo
+import polars as pl
+import polars_umap  # noqa: F401
+
+n_neighbors = mo.ui.slider(2, 100, value=15, label="n_neighbors")
+n_neighbors
+```
+
+```python
+df.umap.fit_transform("embedding", n_neighbors=n_neighbors.value, random_state=0)
+```
+
+UMAP on a few thousand rows takes a fraction of a second, which keeps the notebook responsive.
+For larger data, use `mo.ui.slider(..., debounce=True)` so the embedding only recomputes when
+the slider is released.
