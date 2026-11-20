@@ -1,0 +1,8 @@
+{"rows": 100000, "dim": 32, "groups": 10, "method": "polars-umap .over()", "seconds": 4.240222666005138}
+{"rows": 100000, "dim": 32, "groups": 10, "method": "polars-umap loop", "seconds": 5.113464124995517}
+{"rows": 100000, "dim": 32, "groups": 10, "method": "umap-learn loop", "seconds": 8.701803041010862}
+{"rows": 100000, "dim": 32, "groups": 100, "method": "polars-umap .over()", "seconds": 7.412952917002258}
+{"rows": 100000, "dim": 32, "groups": 100, "method": "polars-umap loop", "seconds": 12.695330625007045}
+{"rows": 100000, "dim": 32, "groups": 100, "method": "umap-learn loop", "seconds": 22.783666333998553}
+{"rows": 100000, "dim": 32, "groups": 1000, "method": "polars-umap .over()", "seconds": 18.42526733300474}
+{"rows": 100000, "dim": 32, "groups": 1000, "method": "polars-umap loop", "seconds": 58.12819920900802}

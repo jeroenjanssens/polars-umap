@@ -1,0 +1,19 @@
+name: Docs
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+      - run: uvx --with mkdocs-material --with "mkdocstrings[python]" mkdocs build --strict
+      - if: github.event_name == 'push'
+        run: uvx --with mkdocs-material --with "mkdocstrings[python]" mkdocs gh-deploy --force

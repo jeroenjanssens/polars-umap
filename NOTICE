@@ -1,0 +1,17 @@
+polars-umap
+Copyright (c) 2026 Jeroen Janssens
+
+This product includes and builds upon software developed by Apple Inc.:
+
+  embedding-atlas (UMAP and NNDescent Rust crates)
+  https://github.com/apple/embedding-atlas
+  Copyright (c) 2025 Apple Inc.
+  Licensed under the MIT License.
+
+Those crates are ports of:
+
+  umap-learn, Copyright (c) 2017 Leland McInnes, BSD 3-Clause License
+  https://github.com/lmcinnes/umap
+
+  PyNNDescent, Copyright (c) 2018 Leland McInnes, BSD 2-Clause License
+  https://github.com/lmcinnes/pynndescent
