@@ -23,7 +23,10 @@ classifiers = [
 ]
 
 [project.urls]
+Documentation = "https://polars-umap.jeroenjanssens.com"
 Repository = "https://github.com/jeroenjanssens/polars-umap"
+Issues = "https://github.com/jeroenjanssens/polars-umap/issues"
+Changelog = "https://github.com/jeroenjanssens/polars-umap/blob/main/CHANGELOG.md"
 Upstream = "https://github.com/apple/embedding-atlas"
 
 [dependency-groups]
@@ -70,6 +73,21 @@ module-name = "polars_umap._internal"
 python-source = "python"
 features = ["pyo3/extension-module"]
 include = [{ path = "LICENSE", format = "sdist" }, { path = "NOTICE", format = "sdist" }]
+# Keep the sdist to what's needed to build and test the package.
+exclude = [
+    { path = ".github/**/*", format = "sdist" },
+    { path = "_freeze/**/*", format = "sdist" },
+    { path = "assets/**/*", format = "sdist" },
+    { path = "benchmarks/**/*", format = "sdist" },
+    { path = "examples/**/*", format = "sdist" },
+    { path = "gallery/**/*", format = "sdist" },
+    { path = "notebooks/**/*", format = "sdist" },
+    { path = "scripts/**/*", format = "sdist" },
+    { path = "user_guide/**/*", format = "sdist" },
+    { path = "great-docs.yml", format = "sdist" },
+    { path = "PLAN.md", format = "sdist" },
+    { path = "uv.lock", format = "sdist" },
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

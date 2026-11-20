@@ -50,7 +50,7 @@ df.with_columns(xy=pl.col("pixels").umap.fit_transform(random_state=42))
 df.umap.fit_transform("pixels", random_state=42)
 ```
 
-![UMAP of the digits dataset](assets/images/digits.png)
+![UMAP of the digits dataset](https://polars-umap.jeroenjanssens.com/assets/images/digits.png)
 
 ## A taste of the API
 
@@ -79,7 +79,7 @@ an interactive marimo notebook.
 
 ## Benchmarks
 
-![Fit time per dataset](assets/images/benchmark_fit_time_06.png)
+![Fit time per dataset](https://polars-umap.jeroenjanssens.com/assets/images/benchmark_fit_time_06.png)
 
 - **2–12× faster than umap-learn**, with the same trustworthiness, kNN recall and label accuracy.
   This excludes umap-learn's 10–12 s numba warm-up.
@@ -112,4 +112,5 @@ if you use this in research:
 
 ## License
 
-MIT. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+MIT. See [LICENSE](https://github.com/jeroenjanssens/polars-umap/blob/main/LICENSE) and
+[NOTICE](https://github.com/jeroenjanssens/polars-umap/blob/main/NOTICE).
