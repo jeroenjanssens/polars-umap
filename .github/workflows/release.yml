@@ -121,12 +121,16 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.13"
-      - shell: bash
+      - name: Install the built wheel and run the tests
+        shell: bash
         run: |
           uv venv
-          uv pip install --no-index --find-links dist polars-umap
+          source .venv/bin/activate 2>/dev/null || source .venv/Scripts/activate
+          # The wheel comes from this run's artifacts; only its dependencies from PyPI.
+          uv pip install --no-index --no-deps --find-links dist polars-umap
           uv pip install polars pytest hypothesis numpy scikit-learn
-          uv run --no-project pytest -m "not parity and not gpu" tests
+          python -c "import polars_umap, sys; print(polars_umap.__version__, polars_umap.__file__)"
+          python -m pytest -m "not parity and not gpu" tests
 
   publish-pypi:
     needs: [validate-tag, linux, macos, windows, sdist, smoke-test]
