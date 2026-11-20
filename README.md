@@ -23,7 +23,7 @@ PyNNDescent from Apple's [embedding-atlas](https://github.com/apple/embedding-at
 - **Small footprint**: one wheel that depends only on Polars. Supports Python ≥ 3.9 and
   Polars ≥ 1.0.
 
-**Documentation: <https://jeroenjanssens.github.io/polars-umap/>**
+**Documentation: <https://polars-umap.jeroenjanssens.com/>**
 
 ## Installation
 
@@ -69,12 +69,12 @@ pl.col("embedding").umap.knn(k=15, metric="cosine")
 pu.umap_from_knn("indices", "distances")
 ```
 
-The [user guide](https://jeroenjanssens.github.io/polars-umap/user-guide/quickstart.html)
+The [user guide](https://polars-umap.jeroenjanssens.com/user-guide/quickstart.html)
 covers these in depth, along with
-[choosing parameters](https://jeroenjanssens.github.io/polars-umap/user-guide/choosing-parameters.html),
-[reproducibility](https://jeroenjanssens.github.io/polars-umap/user-guide/reproducibility.html)
-and [performance](https://jeroenjanssens.github.io/polars-umap/user-guide/performance.html).
-The [examples](https://jeroenjanssens.github.io/polars-umap/gallery/) include a Quarto report and
+[choosing parameters](https://polars-umap.jeroenjanssens.com/user-guide/choosing-parameters.html),
+[reproducibility](https://polars-umap.jeroenjanssens.com/user-guide/reproducibility.html)
+and [performance](https://polars-umap.jeroenjanssens.com/user-guide/performance.html).
+The [examples](https://polars-umap.jeroenjanssens.com/gallery/) include a Quarto report and
 an interactive marimo notebook.
 
 ## Benchmarks
@@ -86,7 +86,7 @@ an interactive marimo notebook.
 - **No measurable overhead from Polars**: polars-umap is as fast as the raw upstream Rust binary.
 - **`.over()` with 1,000 groups**: 18 s, against 58 s for a Python loop.
 
-See the [benchmarks page](https://jeroenjanssens.github.io/polars-umap/user-guide/benchmarks.html)
+See the [benchmarks page](https://polars-umap.jeroenjanssens.com/user-guide/benchmarks.html)
 for all results and the methodology.
 
 ## Limitations
