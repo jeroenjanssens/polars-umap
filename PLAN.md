@@ -350,7 +350,7 @@ polars-umap works around it by retrying with spectral init and raising a clear e
 
 ### Open / for later
 - [ ] Create the GitHub repo, push, and make CI green
-- [ ] Configure the PyPI trusted publisher (environment `pypi`) and tag v0.1.0
+- [ ] Configure the PyPI trusted publisher (workflow `release.yml`, environment `release`) and tag v0.1.0
 - [ ] Publish docs (GitHub Pages)
 - [ ] Consider asking upstream to publish the crates to crates.io (needs a name other than `umap`)
 - [ ] Transform of new points once upstream supports it

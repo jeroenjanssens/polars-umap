@@ -9,7 +9,35 @@ permissions:
   contents: read
 
 jobs:
+  validate-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.validate.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate release tag
+        id: validate
+        run: |
+          if [[ "$GITHUB_REF" != refs/tags/* ]]; then
+            # Manual run: build and test only, using the version in Cargo.toml.
+            VERSION=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          else
+            TAG_NAME="${GITHUB_REF#refs/tags/}"
+            if [[ ! "$TAG_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "Invalid release tag: $TAG_NAME (expected vMAJOR.MINOR.PATCH)"
+              exit 1
+            fi
+            VERSION="${TAG_NAME#v}"
+            CARGO_VERSION=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+            if [[ "$VERSION" != "$CARGO_VERSION" ]]; then
+              echo "Tag $TAG_NAME does not match Cargo.toml version $CARGO_VERSION"
+              exit 1
+            fi
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
   linux:
+    needs: validate-tag
     runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
@@ -31,6 +59,7 @@ jobs:
           path: dist
 
   macos:
+    needs: validate-tag
     runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
@@ -49,6 +78,7 @@ jobs:
           path: dist
 
   windows:
+    needs: validate-tag
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
@@ -62,6 +92,7 @@ jobs:
           path: dist
 
   sdist:
+    needs: validate-tag
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -97,22 +128,64 @@ jobs:
           uv pip install polars pytest hypothesis numpy scikit-learn
           uv run --no-project pytest -m "not parity and not gpu" tests
 
-  publish:
-    needs: [linux, macos, windows, sdist, smoke-test]
+  publish-pypi:
+    needs: [validate-tag, linux, macos, windows, sdist, smoke-test]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
-    environment: pypi
+    environment:
+      name: release
+      url: https://pypi.org/project/polars-umap/
     permissions:
       id-token: write  # PyPI trusted publishing
-      contents: write  # GitHub release
+    steps:
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: dist
+      - name: List distributions
+        run: ls -la dist/
+      - name: Publish to PyPI
+        run: uv publish --trusted-publishing always dist/*
+
+  smoke-test-pypi:
+    needs: [validate-tag, publish-pypi]
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.validate-tag.outputs.version }}
+    steps:
+      - uses: astral-sh/setup-uv@v6
+      # --refresh: PyPI's index pages may be cached for up to 10 minutes.
+      - name: Wait for PyPI availability and import
+        run: |
+          for i in $(seq 1 30); do
+            if uv run --refresh --isolated --no-project --with "polars-umap==$VERSION" python -c "
+          import polars as pl, polars_umap as pu
+          assert pu.__version__ == '$VERSION', pu.__version__
+          df = pl.DataFrame({'a': range(100), 'b': [i % 7 for i in range(100)]})
+          print(df.select(pu.umap('a', 'b', random_state=0)).schema)
+          "; then
+              echo "Installed and imported on attempt $i"
+              exit 0
+            fi
+            echo "Attempt $i: not yet available, waiting 10s..."
+            sleep 10
+          done
+          echo "ERROR: polars-umap $VERSION not installable from PyPI after 5 minutes"
+          exit 1
+
+  github-release:
+    needs: [validate-tag, publish-pypi]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/download-artifact@v4
         with:
           merge-multiple: true
           path: dist
-      - uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          packages-dir: dist
+      - name: Generate checksums
+        run: cd dist && sha256sum * > SHA256SUMS && cat SHA256SUMS
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/*
