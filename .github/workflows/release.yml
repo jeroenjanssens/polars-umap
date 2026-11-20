@@ -118,7 +118,7 @@ jobs:
           pattern: wheels-*
           merge-multiple: true
           path: dist
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.13"
       - name: Install the built wheel and run the tests
@@ -142,7 +142,7 @@ jobs:
     permissions:
       id-token: write  # PyPI trusted publishing
     steps:
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
       - uses: actions/download-artifact@v4
         with:
           merge-multiple: true
@@ -158,7 +158,7 @@ jobs:
     env:
       VERSION: ${{ needs.validate-tag.outputs.version }}
     steps:
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
       # --refresh: PyPI's index pages may be cached for up to 10 minutes.
       - name: Wait for PyPI availability and import
         run: |
