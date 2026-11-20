@@ -41,6 +41,8 @@ authors:
     homepage: https://jeroenjanssens.com
 
 seo:
+  canonical:
+    base_url: https://polars-umap.jeroenjanssens.com/
   default_description: >-
     polars-umap runs UMAP dimensionality reduction inside Polars expressions,
     powered by the Rust implementation from Apple's embedding-atlas.
